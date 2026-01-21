@@ -1,0 +1,202 @@
+[
+  {
+    "name": "benzene",
+    "inchi": "InChI=1S/C6H6/c1-2-4-6-5-3-1/h1-6H",
+    "pH": 9.0,
+    "pMg": 3.0,
+    "ionic_strength_M": 0.25,
+    "temperature_K": 298.15,
+    "standard_dgf_prime_kJ_per_mol": 231.68022084965537,
+    "uncertainty_kJ_per_mol": 29.543532798287274
+  },
+  {
+    "name": "chloro(phenyl)mercury",
+    "inchi": "InChI=1S/C6H5.ClH.Hg/c1-2-4-6-5-3-1;;/h1-5H;1H;/q;;+1/p-1",
+    "pH": 9.0,
+    "pMg": 3.0,
+    "ionic_strength_M": 0.25,
+    "temperature_K": 298.15,
+    "standard_dgf_prime_kJ_per_mol": -148.00776987008123,
+    "uncertainty_kJ_per_mol": 42.66677024891421
+  },
+  {
+    "name": "fluorobenzene",
+    "inchi": "InChI=1S/C6H5F/c7-6-4-2-1-3-5-6/h1-5H",
+    "pH": 9.0,
+    "pMg": 3.0,
+    "ionic_strength_M": 0.25,
+    "temperature_K": 298.15,
+    "standard_dgf_prime_kJ_per_mol": -417.73148771057146,
+    "uncertainty_kJ_per_mol": 35.0267476032844
+  },
+  {
+    "name": "iodobenzene",
+    "inchi": "InChI=1S/C6H5I/c7-6-4-2-1-3-5-6/h1-5H",
+    "pH": 9.0,
+    "pMg": 3.0,
+    "ionic_strength_M": 0.25,
+    "temperature_K": 298.15,
+    "standard_dgf_prime_kJ_per_mol": 12.26943532090172,
+    "uncertainty_kJ_per_mol": 5.15485705620563
+  },
+  {
+    "name": "dichloro(phenyl)phosphane",
+    "inchi": "InChI=1S/C6H5Cl2P/c7-9(8)6-4-2-1-3-5-6/h1-5H",
+    "pH": 9.0,
+    "pMg": 3.0,
+    "ionic_strength_M": 0.25,
+    "temperature_K": 298.15,
+    "standard_dgf_prime_kJ_per_mol": 453.6486789618008,
+    "uncertainty_kJ_per_mol": 21.56507266814166
+  },
+  {
+    "name": "1,3-difluorobenzene",
+    "inchi": "InChI=1S/C6H4F2/c7-5-2-1-3-6(8)4-5/h1-4H",
+    "pH": 9.0,
+    "pMg": 3.0,
+    "ionic_strength_M": 0.25,
+    "temperature_K": 298.15,
+    "standard_dgf_prime_kJ_per_mol": -218.0854772774474,
+    "uncertainty_kJ_per_mol": 47.90915555644972
+  },
+  {
+    "name": "iodosylbenzene",
+    "inchi": "InChI=1S/C6H5IO/c8-7-6-4-2-1-3-5-6/h1-5H",
+    "pH": 9.0,
+    "pMg": 3.0,
+    "ionic_strength_M": 0.25,
+    "temperature_K": 298.15,
+    "standard_dgf_prime_kJ_per_mol": -229.60806058863068,
+    "uncertainty_kJ_per_mol": 5.753244665754713
+  },
+  {
+    "name": "1,2,3,4,5,6-hexadeuteriobenzene",
+    "inchi": "InChI=1S/C6H6/c1-2-4-6-5-3-1/h1-6H/i1D,2D,3D,4D,5D,6D",
+    "pH": 9.0,
+    "pMg": 3.0,
+    "ionic_strength_M": 0.25,
+    "temperature_K": 298.15,
+    "standard_dgf_prime_kJ_per_mol": 1.899490169536591,
+    "uncertainty_kJ_per_mol": 46.96530659858784
+  },
+  {
+    "name": "phenylphosphane",
+    "inchi": "InChI=1S/C6H7P/c7-6-4-2-1-3-5-6/h1-5H,7H2",
+    "pH": 9.0,
+    "pMg": 3.0,
+    "ionic_strength_M": 0.25,
+    "temperature_K": 298.15,
+    "standard_dgf_prime_kJ_per_mol": -427.49902720731006,
+    "uncertainty_kJ_per_mol": 41.92236702540546
+  },
+  {
+    "name": "phenylmercury;hydrate",
+    "inchi": "InChI=1S/C6H5.Hg.H2O/c1-2-4-6-5-3-1;;/h1-5H;;1H2",
+    "pH": 9.0,
+    "pMg": 3.0,
+    "ionic_strength_M": 0.25,
+    "temperature_K": 298.15,
+    "standard_dgf_prime_kJ_per_mol": 421.0794336143582,
+    "uncertainty_kJ_per_mol": 13.40126599559066
+  },
+  {
+    "name": "1,4-difluorobenzene",
+    "inchi": "InChI=1S/C6H4F2/c7-5-1-2-6(8)4-3-5/h1-4H",
+    "pH": 9.0,
+    "pMg": 3.0,
+    "ionic_strength_M": 0.25,
+    "temperature_K": 298.15,
+    "standard_dgf_prime_kJ_per_mol": -246.80973782595228,
+    "uncertainty_kJ_per_mol": 18.578910648577825
+  },
+  {
+    "name": "benzeneselenol",
+    "inchi": "InChI=1S/C6H6Se/c7-6-4-2-1-3-5-6/h1-5,7H",
+    "pH": 9.0,
+    "pMg": 3.0,
+    "ionic_strength_M": 0.25,
+    "temperature_K": 298.15,
+    "standard_dgf_prime_kJ_per_mol": -242.1676928183183,
+    "uncertainty_kJ_per_mol": 15.14891637484069
+  },
+  {
+    "name": "trichloro(phenyl)stannane",
+    "inchi": "InChI=1S/C6H5.3ClH.Sn/c1-2-4-6-5-3-1;;;;/h1-5H;3*1H;/q;;;;+3/p-3",
+    "pH": 9.0,
+    "pMg": 3.0,
+    "ionic_strength_M": 0.25,
+    "temperature_K": 298.15,
+    "standard_dgf_prime_kJ_per_mol": 172.13635473792692,
+    "uncertainty_kJ_per_mol": 19.362424868308587
+  },
+  {
+    "name": "bromo(phenyl)mercury",
+    "inchi": "InChI=1S/C6H5.BrH.Hg/c1-2-4-6-5-3-1;;/h1-5H;1H;/q;;+1/p-1",
+    "pH": 9.0,
+    "pMg": 3.0,
+    "ionic_strength_M": 0.25,
+    "temperature_K": 298.15,
+    "standard_dgf_prime_kJ_per_mol": -72.84971395609494,
+    "uncertainty_kJ_per_mol": 7.966171794973598
+  },
+  {
+    "name": "phenyl selenohypochlorite",
+    "inchi": "InChI=1S/C6H5ClSe/c7-8-6-4-2-1-3-5-6/h1-5H",
+    "pH": 9.0,
+    "pMg": 3.0,
+    "ionic_strength_M": 0.25,
+    "temperature_K": 298.15,
+    "standard_dgf_prime_kJ_per_mol": 267.1341229814145,
+    "uncertainty_kJ_per_mol": 18.652588711210335
+  },
+  {
+    "name": "phenyl selenohypobromite",
+    "inchi": "InChI=1S/C6H5BrSe/c7-8-6-4-2-1-3-5-6/h1-5H",
+    "pH": 9.0,
+    "pMg": 3.0,
+    "ionic_strength_M": 0.25,
+    "temperature_K": 298.15,
+    "standard_dgf_prime_kJ_per_mol": -1.9886097352937782,
+    "uncertainty_kJ_per_mol": 9.42982262383812
+  },
+  {
+    "name": "1,2-diiodobenzene",
+    "inchi": "InChI=1S/C6H4I2/c7-5-3-1-2-4-6(5)8/h1-4H",
+    "pH": 9.0,
+    "pMg": 3.0,
+    "ionic_strength_M": 0.25,
+    "temperature_K": 298.15,
+    "standard_dgf_prime_kJ_per_mol": 415.7002749012498,
+    "uncertainty_kJ_per_mol": 46.69631293930107
+  },
+  {
+    "name": "1,4-diiodobenzene",
+    "inchi": "InChI=1S/C6H4I2/c7-5-1-2-6(8)4-3-5/h1-4H",
+    "pH": 9.0,
+    "pMg": 3.0,
+    "ionic_strength_M": 0.25,
+    "temperature_K": 298.15,
+    "standard_dgf_prime_kJ_per_mol": 484.015851405425,
+    "uncertainty_kJ_per_mol": 25.023782561776095
+  },
+  {
+    "name": "phenylselenol",
+    "inchi": "InChI=1S/C6H5Se/c7-6-4-2-1-3-5-6/h1-5H",
+    "pH": 9.0,
+    "pMg": 3.0,
+    "ionic_strength_M": 0.25,
+    "temperature_K": 298.15,
+    "standard_dgf_prime_kJ_per_mol": 81.39516370364834,
+    "uncertainty_kJ_per_mol": 6.85671581894771
+  },
+  {
+    "name": "1,2-difluorobenzene",
+    "inchi": "InChI=1S/C6H4F2/c7-5-3-1-2-4-6(5)8/h1-4H",
+    "pH": 9.0,
+    "pMg": 3.0,
+    "ionic_strength_M": 0.25,
+    "temperature_K": 298.15,
+    "standard_dgf_prime_kJ_per_mol": 251.93343392356496,
+    "uncertainty_kJ_per_mol": 48.33589498559247
+  }
+]

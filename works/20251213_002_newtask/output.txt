@@ -1,0 +1,21 @@
+[15:44:08] SMILES Parse Error: syntax error while parsing: UDP
+[15:44:08] SMILES Parse Error: check for mistakes around position 1:
+[15:44:08] UDP
+[15:44:08] ^
+[15:44:08] SMILES Parse Error: Failed parsing SMILES 'UDP' for input: 'UDP'
+正在初始化 ComponentContribution 对象...
+初始化完成！
+
+开始计算 UDP 在 298K, pH=10, pMg=6 条件下的生成自由能...
+
+Traceback (most recent call last):
+  File "D:\threo333\Projects\AAA_delta_GPA\codes\works\20251213_002_newtask\udp_calculation.py", line 161, in <module>
+    dgf, err = standard_dgf_prime_CC(
+               ^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\threo333\Projects\AAA_delta_GPA\codes\works\20251213_002_newtask\udp_calculation.py", line 129, in standard_dgf_prime_CC
+    dg_prime_measurement = cc.standard_dg_prime(rxn)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Anaconda\envs\dgpa\Lib\site-packages\equilibrator_api\component_contribution.py", line 505, in standard_dg_prime
+    residual_reaction, stored_dg_prime = reaction.separate_stored_dg_prime(
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'Reaction' object has no attribute 'separate_stored_dg_prime'
