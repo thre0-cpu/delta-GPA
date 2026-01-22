@@ -78,7 +78,7 @@ start.bat
 3. `npm run build` 构建前端
 4. `npx tsx server.ts` 启动服务端
 
-启动成功后，请在控制台输出中查找本地访问地址（例如 `http://localhost:xxxx`）。
+启动成功后，访问地址：**http://localhost:915**
 
 ---
 
@@ -99,9 +99,13 @@ start.bat
 ## 目录结构
 
 - `APIs/`：工具与接口封装（热力学计算/查询/外部服务对接）
+- `envs/`：Python 环境与自定义包（如 GNN 模型）
 - `prompts/`：Agent prompts 与模板
 - `qwen-web-local/`：本地 Web 前端 + Node/TS 服务端（`server.ts`）+ `start.bat`
+- `sl/`：辅助文档与说明
 - `works/`：实验/任务产出工作区
+- `environment.yml`：Conda 环境配置
+- `requirements.txt`：Python 依赖列表
 
 ---
 

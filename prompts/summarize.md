@@ -14,6 +14,7 @@
       * 在`reports`文件夹中创建技术报告，命名为`TECH_report.md`；
       * 在`reports`文件夹中创建代码分析报告，命名为`CODE_report.md` ；
       * 创建工作区`README.md`；
+      * 确认最外层只有`main.ipynb`和`README.md`，不要在外面留下任何python脚本等文件
 
 **注意**：整理后执行`jupyter`命令检查`main.ipynb`能否正常打开为Jupyter Notebook，特别注意中文符号和斜杠的问题。
 
