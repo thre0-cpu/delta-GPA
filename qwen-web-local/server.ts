@@ -3,6 +3,7 @@ import cors from "cors";
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { exec } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
   query,
@@ -81,6 +82,9 @@ type PendingApproval = {
 
 const pendingApprovals = new Map<string, PendingApproval>();
 
+// === 会话中止控制器 ===
+const sessionAbortControllers = new Map<string, AbortController>();
+
 // === App ===
 const app = express();
 app.use(cors());
@@ -145,6 +149,89 @@ app.post("/api/tool/decision", (req, res) => {
   res.json({ ok: true, message: "工具自动执行，无需审批" });
 });
 
+// 中止当前生成
+app.post("/api/chat/interrupt", (req, res) => {
+  const sessionId = String(req.body?.sessionId ?? "").trim();
+  if (!sessionId) return res.status(400).json({ error: "missing sessionId" });
+
+  const controller = sessionAbortControllers.get(sessionId);
+  if (controller) {
+    console.log("[CHAT] 用户中止生成", { sessionId });
+    controller.abort();
+    sessionAbortControllers.delete(sessionId);
+    
+    // 通知前端中止完成
+    const client = sseClients.get(sessionId);
+    if (client) {
+      client.send("interrupted", { sessionId });
+    }
+    res.json({ ok: true, message: "已中止" });
+  } else {
+    res.json({ ok: true, message: "没有正在进行的生成" });
+  }
+});
+
+// 打开本地文件（用 VS Code 或系统默认程序）
+app.post("/api/open-file", async (req, res) => {
+  let filePath = String(req.body?.filePath ?? "").trim();
+  let contextDir = String(req.body?.contextDir ?? "").trim(); // 上下文目录（当前工作文件夹）
+  if (!filePath) return res.status(400).json({ error: "missing filePath" });
+
+  console.log("[OPEN-FILE] 收到请求:", { filePath, contextDir });
+
+  // 处理路径解析
+  let normalizedPath: string;
+  
+  if (path.isAbsolute(filePath)) {
+    // 已经是绝对路径
+    normalizedPath = path.normalize(filePath);
+    console.log("[OPEN-FILE] 使用绝对路径:", normalizedPath);
+  } else if (contextDir && !filePath.includes('/') && !filePath.includes('\\')) {
+    // 纯文件名 + 有上下文目录：优先在上下文目录中查找
+    const contextPath = path.isAbsolute(contextDir) 
+      ? path.normalize(path.join(contextDir, filePath))
+      : path.normalize(path.join(WORKDIR, contextDir, filePath));
+    normalizedPath = contextPath;
+    console.log("[OPEN-FILE] 使用上下文目录:", normalizedPath);
+  } else {
+    // 相对路径，基于 WORKDIR 解析
+    normalizedPath = path.normalize(path.join(WORKDIR, filePath));
+    console.log("[OPEN-FILE] 使用 WORKDIR 相对路径:", normalizedPath);
+  }
+
+  // 安全检查：只允许打开工作目录下的文件
+  if (!normalizedPath.toLowerCase().startsWith(WORKDIR.toLowerCase())) {
+    console.log("[OPEN-FILE] 拒绝打开工作目录外的文件:", normalizedPath);
+    return res.status(403).json({ error: "只能打开工作目录内的文件" });
+  }
+
+  try {
+    // 检查文件是否存在
+    await fs.access(normalizedPath);
+    
+    // 使用 VS Code 打开文件
+    const command = `code "${normalizedPath}"`;
+    console.log("[OPEN-FILE] 执行命令:", command);
+    
+    exec(command, (error) => {
+      if (error) {
+        console.error("[OPEN-FILE] 执行失败:", error.message);
+        // 如果 VS Code 失败，尝试用系统默认程序
+        exec(`start "" "${normalizedPath}"`, (err2) => {
+          if (err2) {
+            console.error("[OPEN-FILE] 系统打开也失败:", err2.message);
+          }
+        });
+      }
+    });
+    
+    res.json({ ok: true, path: normalizedPath });
+  } catch (err: any) {
+    console.error("[OPEN-FILE] 文件不存在:", normalizedPath);
+    res.status(404).json({ error: "文件不存在", path: normalizedPath });
+  }
+});
+
 // 发起一轮对话：前端 POST /api/chat {sessionId, prompt}
 // 实际输出走 SSE（delta/assistant/done）
 app.post("/api/chat", async (req, res) => {
@@ -202,8 +289,10 @@ app.post("/api/chat", async (req, res) => {
   client.send("start", { sessionId });
   console.log("[CHAT] 开始生成", { sessionId });
 
-  // 使用 AbortController 实现超时控制
+  // 使用 AbortController 实现超时控制和手动中止
   const abortController = new AbortController();
+  sessionAbortControllers.set(sessionId, abortController);
+  
   const timeout = setTimeout(() => {
     console.warn("[CHAT] 生成超时（10分钟），中止", { sessionId });
     abortController.abort();
@@ -348,13 +437,14 @@ app.post("/api/chat", async (req, res) => {
     });
   } finally {
     clearTimeout(timeout);
+    sessionAbortControllers.delete(sessionId);
   }
 });
 
 // 只监听本机，避免局域网其他设备访问
-app.listen(3000, "127.0.0.1", () => {
+app.listen(915, "127.0.0.1", () => {
   console.log("\n====================================");
-  console.log("✓ Server running: http://127.0.0.1:3000");
+  console.log("✓ Server running: http://127.0.0.1:915");
   console.log("WORKDIR:", WORKDIR);
   console.log("QWEN_EXE:", QWEN_EXE);
   console.log("====================================\n");

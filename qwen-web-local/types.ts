@@ -29,6 +29,12 @@ export interface ToolEvent {
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'generating' | 'done' | 'error' | 'disconnected';
 
+export interface TodoItem {
+  id: string;
+  content: string;
+  status: 'pending' | 'in-progress' | 'completed';
+}
+
 export interface ChatState {
   sessionId: string;
   status: ConnectionStatus;
