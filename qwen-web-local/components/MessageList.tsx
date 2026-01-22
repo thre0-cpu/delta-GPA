@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Message, ToolEvent } from '../types';
-import { Bot, User, AlertCircle, Terminal, Wrench, X, FileText, AlertTriangle } from 'lucide-react';
+import { Bot, User, AlertCircle, Terminal, Wrench, X, FileText, AlertTriangle, Copy, Check } from 'lucide-react';
 
 const API_BASE = "http://127.0.0.1:915";
 
@@ -107,7 +107,35 @@ interface ToolRefPopupProps {
 }
 
 const ToolRefPopup: React.FC<ToolRefPopupProps> = ({ toolEvent, toolIndex, position, onClose }) => {
+  const [copiedField, setCopiedField] = useState<'name' | 'input' | 'result' | null>(null);
+
   if (!toolEvent) return null;
+
+  const handleCopy = async (text: string, field: 'name' | 'input' | 'result') => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 1500);
+    } catch (err) {
+      console.error('复制失败:', err);
+    }
+  };
+
+  const formatInput = (input: any): string => {
+    if (typeof input === 'string') {
+      try {
+        return JSON.stringify(JSON.parse(input), null, 2);
+      } catch {
+        return input;
+      }
+    }
+    return JSON.stringify(input, null, 2);
+  };
+
+  const formatResult = (result: any): string => {
+    if (typeof result === 'string') return result;
+    return JSON.stringify(result, null, 2);
+  };
 
   return (
     <div 
@@ -116,6 +144,7 @@ const ToolRefPopup: React.FC<ToolRefPopupProps> = ({ toolEvent, toolIndex, posit
         left: Math.min(position.x, window.innerWidth - 420), 
         top: Math.min(position.y + 10, window.innerHeight - 300)
       }}
+      onClick={(e) => e.stopPropagation()}
     >
       <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-700 bg-zinc-800 rounded-t-lg">
         <div className="flex items-center gap-2 text-sm font-medium text-zinc-200">
@@ -127,27 +156,56 @@ const ToolRefPopup: React.FC<ToolRefPopupProps> = ({ toolEvent, toolIndex, posit
         </button>
       </div>
       <div className="p-3 space-y-2 max-h-64 overflow-auto">
-        <div>
-          <span className="text-xs text-zinc-500">工具名称：</span>
-          <span className="text-sm text-blue-400 font-mono ml-1">{toolEvent.name || '未知'}</span>
+        <div className="flex items-center justify-between group">
+          <div>
+            <span className="text-xs text-zinc-500">工具名称：</span>
+            <span className="text-sm text-blue-400 font-mono ml-1">{toolEvent.name || '未知'}</span>
+          </div>
+          <button 
+            onClick={() => handleCopy(toolEvent.name || '', 'name')}
+            className="opacity-0 group-hover:opacity-100 p-1 text-zinc-400 hover:text-white hover:bg-zinc-700 rounded transition-all"
+            title="复制工具名称"
+          >
+            {copiedField === 'name' ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
+          </button>
         </div>
         {toolEvent.input && (
           <div>
-            <span className="text-xs text-zinc-500">入参：</span>
-            <pre className="mt-1 text-xs bg-zinc-950 p-2 rounded overflow-auto max-h-32 text-zinc-300">
-              {typeof toolEvent.input === 'string' 
-                ? toolEvent.input 
-                : JSON.stringify(toolEvent.input, null, 2)}
+            <div className="flex items-center justify-between group">
+              <span className="text-xs text-zinc-500">入参：</span>
+              <button 
+                onClick={() => handleCopy(formatInput(toolEvent.input), 'input')}
+                className="opacity-0 group-hover:opacity-100 p-1 text-zinc-400 hover:text-white hover:bg-zinc-700 rounded transition-all"
+                title="复制入参"
+              >
+                {copiedField === 'input' ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
+              </button>
+            </div>
+            <pre className="mt-1 text-xs bg-zinc-950 p-2 rounded overflow-auto max-h-32 text-zinc-300 cursor-pointer hover:bg-zinc-900 transition-colors"
+              onClick={() => handleCopy(formatInput(toolEvent.input), 'input')}
+              title="点击复制"
+            >
+              {formatInput(toolEvent.input)}
             </pre>
           </div>
         )}
         {toolEvent.result && (
           <div>
-            <span className="text-xs text-zinc-500">结果：</span>
-            <pre className="mt-1 text-xs bg-zinc-950 p-2 rounded overflow-auto max-h-32 text-zinc-300">
-              {typeof toolEvent.result === 'string' 
-                ? toolEvent.result.slice(0, 500) + (toolEvent.result.length > 500 ? '...' : '')
-                : JSON.stringify(toolEvent.result, null, 2).slice(0, 500)}
+            <div className="flex items-center justify-between group">
+              <span className="text-xs text-zinc-500">结果：</span>
+              <button 
+                onClick={() => handleCopy(formatResult(toolEvent.result), 'result')}
+                className="opacity-0 group-hover:opacity-100 p-1 text-zinc-400 hover:text-white hover:bg-zinc-700 rounded transition-all"
+                title="复制结果"
+              >
+                {copiedField === 'result' ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
+              </button>
+            </div>
+            <pre className="mt-1 text-xs bg-zinc-950 p-2 rounded overflow-auto max-h-32 text-zinc-300 cursor-pointer hover:bg-zinc-900 transition-colors"
+              onClick={() => handleCopy(formatResult(toolEvent.result), 'result')}
+              title="点击复制"
+            >
+              {formatResult(toolEvent.result).slice(0, 500) + (formatResult(toolEvent.result).length > 500 ? '...' : '')}
             </pre>
           </div>
         )}

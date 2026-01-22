@@ -131,3 +131,7 @@ npm run build
 - 查看控制台报错堆栈定位缺失的环境变量/端口冲突等问题
 
 ---
+
+## License
+
+This project is licensed under the MIT License. See the LICENSE file for details.

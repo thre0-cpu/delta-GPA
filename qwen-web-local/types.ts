@@ -35,6 +35,14 @@ export interface TodoItem {
   status: 'pending' | 'in-progress' | 'completed';
 }
 
+export interface FileNode {
+  name: string;
+  path: string;
+  relativePath: string;
+  isDirectory: boolean;
+  children?: FileNode[];
+}
+
 export interface ChatState {
   sessionId: string;
   status: ConnectionStatus;

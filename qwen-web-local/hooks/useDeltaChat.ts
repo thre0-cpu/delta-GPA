@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Message, ToolRequestPayload, ConnectionStatus, ToolEvent, TodoItem } from '../types';
+import { Message, ToolRequestPayload, ConnectionStatus, ToolEvent, TodoItem, FileNode } from '../types';
 
 const API_BASE = "http://127.0.0.1:915";
 const MAX_RECONNECT_ATTEMPTS = 3;
@@ -14,6 +14,11 @@ export const useDeltaChat = () => {
   const [toolEvents, setToolEvents] = useState<ToolEvent[]>([]);
   const [todoItems, setTodoItems] = useState<TodoItem[]>([]);
   const [connectionFailed, setConnectionFailed] = useState(false); // 连接彻底失败标志
+  
+  // 工作区相关状态
+  const [workspacePath, setWorkspacePath] = useState<string | null>(null);
+  const [workspaceFiles, setWorkspaceFiles] = useState<FileNode[]>([]);
+  const [workspaceLoading, setWorkspaceLoading] = useState(false);
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectAttemptsRef = useRef(0);
@@ -22,6 +27,7 @@ export const useDeltaChat = () => {
   const toolCallCounterRef = useRef(0); // 工具调用计数器
   const seenToolUseIdsRef = useRef<Set<string>>(new Set()); // 已处理过的 toolUseId
   const connectTimeoutRef = useRef<NodeJS.Timeout | null>(null); // 连接超时检测
+  const refreshWorkspaceFilesRef = useRef<(() => void) | null>(null); // 用于在SSE回调中刷新文件列表
 
   // Initialize Session ID once
   useEffect(() => {
@@ -152,6 +158,10 @@ export const useDeltaChat = () => {
 
     es.addEventListener("done", () => {
       setStatus("connected");
+      // 生成完成后自动刷新工作区文件列表
+      setTimeout(() => {
+        refreshWorkspaceFilesRef.current?.();
+      }, 300);
     });
 
     es.addEventListener("interrupted", () => {
@@ -163,6 +173,23 @@ export const useDeltaChat = () => {
         content: '生成已中止',
         timestamp: Date.now()
       }]);
+    });
+
+    // 监听工作区创建事件（后端检测到工具创建 works/... 文件夹时推送）
+    es.addEventListener("workspace", (e: MessageEvent) => {
+      try {
+        const { path: wsPath } = JSON.parse(e.data);
+        console.log("[SSE] 收到 workspace 事件:", wsPath);
+        if (wsPath) {
+          setWorkspacePath(wsPath);
+          // 延迟一点刷新文件列表，确保文件夹已创建
+          setTimeout(() => {
+            refreshWorkspaceFilesRef.current?.();
+          }, 500);
+        }
+      } catch (err) {
+        console.error("Error parsing workspace event", err);
+      }
     });
 
     es.addEventListener("tool_event", (e: MessageEvent) => {
@@ -242,6 +269,13 @@ export const useDeltaChat = () => {
           } catch {
             // ignore parse error
           }
+        }
+        
+        // 工具调用结果返回后刷新工作区（可能创建/修改了文件）
+        if (payload.kind === 'result' && !payload.partial) {
+          setTimeout(() => {
+            refreshWorkspaceFilesRef.current?.();
+          }, 300);
         }
       } catch (err) {
         console.error("Failed to parse tool_event", err);
@@ -432,6 +466,94 @@ export const useDeltaChat = () => {
     }
   };
 
+  // ========== 工作区功能 ==========
+  
+  // 设置工作区路径
+  const setWorkspace = async (path: string) => {
+    try {
+      const resp = await fetch(`${API_BASE}/api/workspace/set`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, workspacePath: path }),
+      });
+      const data = await resp.json();
+      if (data.ok) {
+        setWorkspacePath(data.path);
+        // 设置成功后自动刷新文件列表
+        await refreshWorkspaceFiles();
+      }
+    } catch (err) {
+      console.error("Set workspace failed", err);
+    }
+  };
+
+  // 刷新工作区文件列表
+  const refreshWorkspaceFiles = async () => {
+    if (!sessionId) return;
+    
+    setWorkspaceLoading(true);
+    try {
+      const resp = await fetch(`${API_BASE}/api/workspace/files?sessionId=${encodeURIComponent(sessionId)}`);
+      const data = await resp.json();
+      if (data.ok) {
+        setWorkspaceFiles(data.files || []);
+        if (data.workspacePath) {
+          setWorkspacePath(data.workspacePath);
+        }
+      }
+    } catch (err) {
+      console.error("Refresh workspace files failed", err);
+    } finally {
+      setWorkspaceLoading(false);
+    }
+  };
+
+  // 更新 ref 以便在 SSE 回调中使用
+  useEffect(() => {
+    refreshWorkspaceFilesRef.current = refreshWorkspaceFiles;
+  }, [sessionId]);
+
+  // 打开工作区中的文件
+  const openWorkspaceFile = async (relativePath: string) => {
+    try {
+      await fetch(`${API_BASE}/api/workspace/open`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, relativePath }),
+      });
+    } catch (err) {
+      console.error("Open file failed", err);
+    }
+  };
+
+  // 上传文件到工作区
+  const uploadToWorkspace = async (files: FileList) => {
+    if (!workspacePath) return;
+    
+    const formData = new FormData();
+    formData.append('sessionId', sessionId);
+    for (let i = 0; i < files.length; i++) {
+      formData.append('files', files[i]);
+    }
+    
+    try {
+      const resp = await fetch(`${API_BASE}/api/workspace/upload`, {
+        method: "POST",
+        body: formData,
+      });
+      const data = await resp.json();
+      if (data.ok) {
+        // 上传成功后刷新文件列表
+        await refreshWorkspaceFiles();
+      }
+    } catch (err) {
+      console.error("Upload failed", err);
+    }
+  };
+
+  // 注意：工作区路径现在通过 SSE 的 "workspace" 事件接收，
+  // 后端在检测到工具创建 works/... 文件夹时自动推送
+
   return {
     sessionId,
     messages,
@@ -440,7 +562,16 @@ export const useDeltaChat = () => {
     pendingTool,
     toolEvents,
     todoItems,
-    connectionFailed, // 新增：连接失败标志
+    connectionFailed,
+    // 工作区相关
+    workspacePath,
+    workspaceFiles,
+    workspaceLoading,
+    setWorkspace,
+    refreshWorkspaceFiles,
+    openWorkspaceFile,
+    uploadToWorkspace,
+    // 方法
     sendMessage,
     resetSession,
     handleToolDecision,

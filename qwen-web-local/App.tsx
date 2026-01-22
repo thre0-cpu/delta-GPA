@@ -1,8 +1,9 @@
 import React, { useState, KeyboardEvent, useEffect, useRef } from 'react';
-import { Send, RefreshCw, Zap, ZapOff, Trash2, Power, CheckCircle, ListTodo, StopCircle, AlertTriangle } from 'lucide-react';
+import { Send, RefreshCw, Zap, ZapOff, Trash2, CheckCircle, ListTodo, StopCircle, AlertTriangle } from 'lucide-react';
 import { useDeltaChat } from './hooks/useDeltaChat';
 import MessageList from './components/MessageList';
 import ToolModal from './components/ToolModal';
+import WorkspacePanel from './components/WorkspacePanel';
 
 function App() {
   const { 
@@ -13,6 +14,14 @@ function App() {
     toolEvents,
     todoItems,
     connectionFailed,
+    // 工作区相关
+    workspacePath,
+    workspaceFiles,
+    workspaceLoading,
+    refreshWorkspaceFiles,
+    openWorkspaceFile,
+    uploadToWorkspace,
+    // 方法
     sendMessage, 
     resetSession, 
     handleToolDecision,
@@ -28,17 +37,12 @@ function App() {
   // ========== 普通对话后缀（在此处设置，会自动拼接到用户输入后面发送给后端） ==========
   const normalChatSuffix = ' \n 注意：严格遵守@prompts/reply.md，并且完整阅读@prompts/memory.md，遵循这些规则行事。';
   // ====================================================================================
-  const toolEventsEndRef = useRef<HTMLDivElement>(null);
 
   const handleResetConfirm = () => {
     resetSession();
     setHasSentFirst(false);
     setShowResetConfirm(false);
   };
-
-  useEffect(() => {
-    toolEventsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [toolEvents]);
 
   // 判断是否为预设按钮的内容（不需要拼接后缀）
   const isPresetPrompt = (text: string) => {
@@ -221,72 +225,16 @@ function App() {
             </div>
           </div>
 
-          {/* Tool Events Panel */}
-          <div className="flex-1 rounded-xl border border-zinc-800 bg-surface/60 overflow-hidden flex flex-col min-h-0">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
-              <div className="flex items-center gap-2 text-sm text-zinc-300">
-                <Power size={16} className="text-primary" />
-                <span>工具执行 / 任务</span>
-              </div>
-              <span className="text-xs text-zinc-500">{toolEvents.length} 条</span>
-            </div>
-
-            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-            {toolEvents.length === 0 && (
-              <p className="text-xs text-zinc-500">暂无工具运行记录。</p>
-            )}
-
-            {toolEvents.slice(-50).map((evt, index) => {
-              // 计算工具调用序号（只对 kind='use' 的事件计数）
-              const useEvents = toolEvents.filter(e => e.kind === 'use');
-              const toolIndex = evt.kind === 'use' ? useEvents.indexOf(evt) + 1 : null;
-              
-              return (
-              <div key={evt.id} className="rounded-lg border border-zinc-800 bg-surfaceHighlight/60 p-3 text-xs text-zinc-200">
-                <div className="flex items-center justify-between mb-1">
-                  <span className={`font-semibold ${evt.kind === 'result' ? 'text-emerald-400' : 'text-blue-300'}`}>
-                    {evt.kind === 'use' 
-                      ? `工具调用 #${toolIndex}` 
-                      : (evt.isError ? '工具结果(错误)' : '工具结果')}
-                  </span>
-                  <span className="text-[10px] text-zinc-500 font-mono">{evt.toolUseId?.slice(0, 6) ?? 'n/a'}</span>
-                </div>
-                {evt.name && (
-                  <div className="text-zinc-300 mb-2 font-mono text-[11px]">
-                    <pre className="bg-zinc-950 p-2 rounded overflow-auto border border-zinc-800">{evt.name}</pre>
-                  </div>
-                )}
-                {evt.input && (
-                  <div className="text-zinc-400 whitespace-pre-wrap break-words mb-1 font-mono text-[10px]">
-                    <span className="text-zinc-500">入参:</span>
-                    {(() => {
-                      try {
-                        const parsed = typeof evt.input === 'string' ? JSON.parse(evt.input) : evt.input;
-                        return <pre className="bg-zinc-950 p-2 rounded mt-1 overflow-auto">{JSON.stringify(parsed, null, 2)}</pre>;
-                      } catch {
-                        return <span>{typeof evt.input === 'string' ? evt.input : JSON.stringify(evt.input)}</span>;
-                      }
-                    })()}
-                  </div>
-                )}
-                {evt.result && (
-                  <div className="text-zinc-400 whitespace-pre-wrap break-words font-mono text-[10px]">
-                    <span className="text-zinc-500">输出:</span>
-                    {(() => {
-                      try {
-                        const parsed = typeof evt.result === 'string' ? JSON.parse(evt.result) : evt.result;
-                        return <pre className="bg-zinc-950 p-2 rounded mt-1 overflow-auto">{JSON.stringify(parsed, null, 2)}</pre>;
-                      } catch {
-                        return <span>{typeof evt.result === 'string' ? evt.result : JSON.stringify(evt.result)}</span>;
-                      }
-                    })()}
-                  </div>
-                )}
-              </div>
-            );})}
-            <div ref={toolEventsEndRef} />
-          </div>
-          </div>
+          {/* Workspace Panel */}
+          <WorkspacePanel
+            sessionId={sessionId}
+            workspacePath={workspacePath}
+            files={workspaceFiles}
+            isLoading={workspaceLoading}
+            onRefresh={refreshWorkspaceFiles}
+            onOpenFile={openWorkspaceFile}
+            onUploadFiles={uploadToWorkspace}
+          />
         </aside>
       </main>
 

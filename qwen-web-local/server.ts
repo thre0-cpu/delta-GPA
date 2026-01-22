@@ -68,9 +68,98 @@ const sseClients = new Map<string, SseClient>();
 
 function makeSseSender(res: express.Response) {
   return (event: string, data: unknown) => {
-    res.write(`event: ${event}\n`);
-    res.write(`data: ${JSON.stringify(data)}\n\n`);
+    try {
+      res.write(`event: ${event}\n`);
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
+    } catch (e) {
+      // 连接可能已断开，忽略写入错误
+    }
   };
+}
+
+// 动态获取并发送SSE消息的辅助函数（每次发送前重新获取最新的client）
+function sendToSession(sessionId: string, event: string, data: unknown): boolean {
+  const client = sseClients.get(sessionId);
+  if (client) {
+    client.send(event, data);
+    return true;
+  }
+  return false;
+}
+
+// 记录已推送过工作区事件的会话，避免重复推送
+const sessionWorkspaceNotified = new Set<string>();
+
+// 检测工作区创建（通过工具调用参数）
+// 当检测到创建 works/YYYYMMDD_XXX_... 格式的文件夹时，自动设置工作区
+function detectWorkspaceCreation(sessionId: string, toolName: string, input: any) {
+  // 如果该会话已经推送过工作区事件，跳过
+  if (sessionWorkspaceNotified.has(sessionId)) return;
+  
+  try {
+    // 解析 input
+    const inputObj = typeof input === 'string' ? JSON.parse(input) : input;
+    if (!inputObj) return;
+    
+    let targetPath: string | null = null;
+    
+    // 方式1：检测 shell 命令（如 run_shell_command, run_in_terminal 等）
+    if (inputObj.command && typeof inputObj.command === 'string') {
+      const cmd = inputObj.command;
+      // 匹配 mkdir 命令：mkdir works\YYYYMMDD_XXX_name 或 mkdir -p works/...
+      const mkdirPatterns = [
+        /mkdir\s+(?:-p\s+)?["']?([^"'\s]+works[\\\/]\d{8}_\d{3}_[\w\-]+)/i,
+        /mkdir\s+(?:-p\s+)?["']?.*?(works[\\\/]\d{8}_\d{3}_[\w\-]+)/i,
+        /New-Item\s+.*?["']?([^"'\s]*works[\\\/]\d{8}_\d{3}_[\w\-]+)/i,
+      ];
+      
+      for (const pattern of mkdirPatterns) {
+        const match = cmd.match(pattern);
+        if (match) {
+          targetPath = match[1];
+          break;
+        }
+      }
+    }
+    
+    // 方式2：检查常见的文件/目录创建工具的路径字段
+    if (!targetPath) {
+      const pathFields = ['path', 'filePath', 'dirPath', 'directory', 'folder'];
+      for (const field of pathFields) {
+        if (inputObj[field] && typeof inputObj[field] === 'string') {
+          targetPath = inputObj[field];
+          break;
+        }
+      }
+    }
+    
+    if (!targetPath) return;
+    
+    // 匹配 works/YYYYMMDD_XXX_name 格式
+    const workspacePattern = /works[\\\/](\d{8}_\d{3}_[\w\-]+)/;
+    const match = targetPath.match(workspacePattern);
+    
+    if (match) {
+      const workspaceName = match[1]; // 例如 "20260122_001_newtask"
+      const workspacePath = `works/${workspaceName}`;
+      
+      console.log("[Workspace] 检测到工作区创建:", { toolName, workspacePath, command: inputObj.command });
+      
+      // 标记已通知，避免重复推送
+      sessionWorkspaceNotified.add(sessionId);
+      
+      // 自动设置该会话的工作区
+      sessionWorkspaces.set(sessionId, path.join(WORKDIR, workspacePath));
+      
+      // 推送工作区事件给前端
+      sendToSession(sessionId, "workspace", { 
+        path: workspacePath,
+        absolutePath: path.join(WORKDIR, workspacePath)
+      });
+    }
+  } catch (e) {
+    // 忽略解析错误
+  }
 }
 
 // === 工具审批 pending 表 ===
@@ -140,8 +229,9 @@ app.post("/api/session/reset", (req, res) => {
   console.log("[CHAT] incoming", { sessionId: req.body?.sessionId });
   const { sessionId } = req.body ?? {};
   if (!sessionId) return res.status(400).json({ error: "missing sessionId" });
-  histories.set(String(sessionId), []);
-  res.json({ ok: true });
+  histories.set(String(sessionId), []);  // 清除工作区状态
+  sessionWorkspaces.delete(sessionId);
+  sessionWorkspaceNotified.delete(sessionId);  res.json({ ok: true });
 });
 
 // 前端提交工具审批结果
@@ -161,10 +251,7 @@ app.post("/api/chat/interrupt", (req, res) => {
     sessionAbortControllers.delete(sessionId);
     
     // 通知前端中止完成
-    const client = sseClients.get(sessionId);
-    if (client) {
-      client.send("interrupted", { sessionId });
-    }
+    sendToSession(sessionId, "interrupted", { sessionId });
     res.json({ ok: true, message: "已中止" });
   } else {
     res.json({ ok: true, message: "没有正在进行的生成" });
@@ -252,8 +339,8 @@ app.post("/api/chat", async (req, res) => {
   // 立刻返回，避免前端卡住；流式输出通过 SSE 推送
   res.json({ ok: true });
 
-  const client = sseClients.get(sessionId);
-  if (!client) {
+  // 检查SSE连接是否存在（但不持有引用，每次发送时动态获取）
+  if (!sseClients.has(sessionId)) {
     console.warn("[CHAT] SSE client not connected", { sessionId });
     return;
   }
@@ -267,7 +354,7 @@ app.post("/api/chat", async (req, res) => {
   let qwenMd = "";
   try {
     qwenMd = await getQwenMdText();
-  } catch (e: any) {    console.error("[CHAT] 读取 QWEN.md 失败：", e);    client.send("error", { message: `读取 QWEN.md 失败：${e?.message ?? String(e)}` });
+  } catch (e: any) {    console.error("[CHAT] 读取 QWEN.md 失败：", e);    sendToSession(sessionId, "error", { message: `读取 QWEN.md 失败：${e?.message ?? String(e)}` });
     return;
   }
 
@@ -277,7 +364,9 @@ app.post("/api/chat", async (req, res) => {
     qwenMd.length > MAX_QWEN_MD_CHARS ? qwenMd.slice(0, MAX_QWEN_MD_CHARS) + "\n\n[...QWEN.md 已截断...]" : qwenMd;
 
   const history = getHistory(sessionId);
+  console.log("[CHAT-DEBUG-HISTORY] 当前历史条数:", history.length, "内容摘要:", history.map(h => ({ role: h.role, len: h.content.length, preview: h.content.slice(0, 50) })));
   const formattedHistory = formatHistoryForPrompt(history.slice(0, -1)); // 不重复包含本轮用户消息（我们单独放在末尾）
+  console.log("[CHAT-DEBUG-HISTORY] 格式化历史长度:", formattedHistory.length);
 
   const wrappedPrompt =
     `你是本项目的代码助手。QWEN.md 是最高优先级的项目说明与约束，必须严格遵守。\n\n` +
@@ -286,7 +375,7 @@ app.post("/api/chat", async (req, res) => {
     `用户：${userPrompt}\n\n` +
     `助手：`;
 
-  client.send("start", { sessionId });
+  sendToSession(sessionId, "start", { sessionId });
   console.log("[CHAT] 开始生成", { sessionId });
 
   // 使用 AbortController 实现超时控制和手动中止
@@ -312,6 +401,9 @@ app.post("/api/chat", async (req, res) => {
 
     let assistantFull = "";
     let messageCount = 0;
+    
+    // 记录本轮对话中的工具调用（用于生成历史摘要）
+    const toolCallsForHistory: { name: string; input: string; result: string }[] = [];
 
     // 记录 streaming 中出现的 tool_use/tool_result（用于前端展示）
     const blockStates = new Map<number, { type: string; toolUseId?: string; name?: string; input?: string; result?: string; isError?: boolean }>();
@@ -337,15 +429,18 @@ app.post("/api/chat", async (req, res) => {
 
             // 立即把开始事件推给前端
             if (cb?.type === "tool_use") {
-              client.send("tool_event", {
+              sendToSession(sessionId, "tool_event", {
                 kind: "use",
                 toolUseId: cb.id,
                 name: cb.name,
                 input: cb.input,
               });
+              
+              // 检测是否是创建工作区文件夹的操作
+              detectWorkspaceCreation(sessionId, cb.name, cb.input);
             }
             if (cb?.type === "tool_result") {
-              client.send("tool_event", {
+              sendToSession(sessionId, "tool_event", {
                 kind: "result",
                 toolUseId: cb.tool_use_id,
                 isError: cb.is_error ?? false,
@@ -360,18 +455,21 @@ app.post("/api/chat", async (req, res) => {
             if (state?.type === "tool_use" && evt.delta?.type === "input_json_delta") {
               const partial = evt.delta?.partial_json ?? "";
               state.input = (state.input ?? "") + partial;
-              client.send("tool_event", {
+              sendToSession(sessionId, "tool_event", {
                 kind: "use",
                 toolUseId: state.toolUseId,
                 name: state.name,
                 input: state.input,
                 partial: true,
               });
+              
+              // 尝试检测工作区创建（input 可能已经包含完整的 command）
+              detectWorkspaceCreation(sessionId, state.name || "", state.input);
             }
             if (state?.type === "tool_result" && evt.delta?.type === "text_delta") {
               const partial = evt.delta?.text ?? "";
               state.result = (state.result ?? "") + partial;
-              client.send("tool_event", {
+              sendToSession(sessionId, "tool_event", {
                 kind: "result",
                 toolUseId: state.toolUseId,
                 result: state.result,
@@ -385,7 +483,7 @@ app.post("/api/chat", async (req, res) => {
           const deltaText = evt?.delta?.text;
           if (typeof deltaText === "string" && deltaText.length > 0) {
             assistantFull += deltaText;
-            client.send("delta", { text: deltaText });
+            sendToSession(sessionId, "delta", { text: deltaText });
             messageCount++;
           }
         } else if (msgObj?.type === "assistant") {
@@ -395,7 +493,7 @@ app.post("/api/chat", async (req, res) => {
           if (typeof resultText === "string" && resultText.length > assistantFull.length) {
             console.log("[CHAT-RESULT] using result as fallback, length:", resultText.length);
             assistantFull = resultText;
-            client.send("delta", { text: resultText });
+            sendToSession(sessionId, "delta", { text: resultText });
             messageCount++;
           }
         }
@@ -405,14 +503,43 @@ app.post("/api/chat", async (req, res) => {
       }
     }
 
-    // 把本轮助手最终内容写入历史（用 assistantFull，保证和网页上看到的一致）
-    if (assistantFull.trim()) {
-      pushHistory(sessionId, { role: "assistant", content: assistantFull.trim(), ts: Date.now() });
-      client.send("done", { ok: true });
-      console.log("[CHAT] 生成完成", { sessionId, responseLen: assistantFull.length, messageCount });
+    // 从 blockStates 中整理工具调用信息，生成历史摘要
+    const toolSummaries: string[] = [];
+    for (const [, state] of blockStates) {
+      if (state.type === "tool_use" && state.name) {
+        // 简化 input（截断过长的内容）
+        let inputSummary = "";
+        try {
+          const inputObj = typeof state.input === 'string' ? JSON.parse(state.input) : state.input;
+          inputSummary = JSON.stringify(inputObj);
+          if (inputSummary.length > 200) inputSummary = inputSummary.slice(0, 200) + "...";
+        } catch {
+          inputSummary = state.input?.slice(0, 200) || "";
+        }
+        toolSummaries.push(`[工具调用: ${state.name}] ${inputSummary}`);
+      }
+      if (state.type === "tool_result" && state.result) {
+        // 简化 result（截断过长的内容）
+        const resultSummary = state.result.length > 300 ? state.result.slice(0, 300) + "..." : state.result;
+        toolSummaries.push(`[工具结果${state.isError ? '(错误)' : ''}] ${resultSummary}`);
+      }
+    }
+    
+    // 将工具调用摘要附加到助手回复
+    let contentForHistory = assistantFull.trim();
+    if (toolSummaries.length > 0) {
+      contentForHistory += "\n\n--- 本轮工具调用记录 ---\n" + toolSummaries.join("\n");
+    }
+
+    // 把本轮助手最终内容写入历史（包含工具调用摘要）
+    if (contentForHistory) {
+      console.log("[CHAT-DEBUG-SAVE] 保存助手回复，长度:", contentForHistory.length, "预览:", contentForHistory.slice(0, 100), "工具调用数:", toolSummaries.length);
+      pushHistory(sessionId, { role: "assistant", content: contentForHistory, ts: Date.now() });
+      sendToSession(sessionId, "done", { ok: true });
+      console.log("[CHAT] 生成完成", { sessionId, responseLen: contentForHistory.length, messageCount, toolCalls: toolSummaries.length });
     } else {
       console.warn("[CHAT] 空响应", { sessionId });
-      client.send("error", { message: "生成的回复为空，请检查 Qwen Code 配置" });
+      sendToSession(sessionId, "error", { message: "生成的回复为空，请检查 Qwen Code 配置" });
     }
   } catch (err: any) {
     console.error("[CHAT] 生成错误:", {
@@ -431,13 +558,203 @@ app.post("/api/chat", async (req, res) => {
       ? "生成超时（10分钟）"
       : errorMsg;
     
-    client.send("error", { 
+    sendToSession(sessionId, "error", { 
       message: `[Qwen 错误] ${userFriendlyMsg}`,
       debug: process.env.DEBUG ? errorMsg : undefined 
     });
   } finally {
     clearTimeout(timeout);
     sessionAbortControllers.delete(sessionId);
+  }
+});
+
+// === 工作区管理 ===
+// 存储每个会话的当前工作区路径
+const sessionWorkspaces = new Map<string, string>();
+
+// 设置当前工作区
+app.post("/api/workspace/set", (req, res) => {
+  const sessionId = String(req.body?.sessionId ?? "").trim();
+  const workspacePath = String(req.body?.workspacePath ?? "").trim();
+  
+  if (!sessionId) return res.status(400).json({ error: "missing sessionId" });
+  if (!workspacePath) return res.status(400).json({ error: "missing workspacePath" });
+  
+  // 构建完整路径
+  const fullPath = path.isAbsolute(workspacePath) 
+    ? workspacePath 
+    : path.join(WORKDIR, workspacePath);
+  
+  // 安全检查
+  if (!fullPath.toLowerCase().startsWith(WORKDIR.toLowerCase())) {
+    return res.status(403).json({ error: "工作区必须在项目目录内" });
+  }
+  
+  sessionWorkspaces.set(sessionId, fullPath);
+  console.log("[WORKSPACE] 设置工作区:", { sessionId, path: fullPath });
+  res.json({ ok: true, path: fullPath });
+});
+
+// 获取当前工作区
+app.get("/api/workspace/get", (req, res) => {
+  const sessionId = String(req.query.sessionId ?? "").trim();
+  if (!sessionId) return res.status(400).json({ error: "missing sessionId" });
+  
+  const workspacePath = sessionWorkspaces.get(sessionId);
+  res.json({ ok: true, path: workspacePath ?? null });
+});
+
+// 获取工作区文件列表（递归）
+app.get("/api/workspace/files", async (req, res) => {
+  const sessionId = String(req.query.sessionId ?? "").trim();
+  if (!sessionId) return res.status(400).json({ error: "missing sessionId" });
+  
+  const workspacePath = sessionWorkspaces.get(sessionId);
+  if (!workspacePath) {
+    return res.json({ ok: true, files: [], message: "未设置工作区" });
+  }
+  
+  try {
+    await fs.access(workspacePath);
+  } catch {
+    return res.status(404).json({ error: "工作区目录不存在" });
+  }
+  
+  interface FileNode {
+    name: string;
+    path: string;
+    relativePath: string;
+    isDirectory: boolean;
+    children?: FileNode[];
+  }
+  
+  async function scanDir(dirPath: string, relativePath: string = ""): Promise<FileNode[]> {
+    const entries = await fs.readdir(dirPath, { withFileTypes: true });
+    const result: FileNode[] = [];
+    
+    // 排序：文件夹在前，然后按名称排序
+    entries.sort((a, b) => {
+      if (a.isDirectory() && !b.isDirectory()) return -1;
+      if (!a.isDirectory() && b.isDirectory()) return 1;
+      return a.name.localeCompare(b.name);
+    });
+    
+    for (const entry of entries) {
+      // 跳过隐藏文件和常见忽略目录
+      if (entry.name.startsWith('.') || 
+          entry.name === 'node_modules' || 
+          entry.name === '__pycache__' ||
+          entry.name === '.ipynb_checkpoints') {
+        continue;
+      }
+      
+      const fullPath = path.join(dirPath, entry.name);
+      const relPath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
+      
+      if (entry.isDirectory()) {
+        const children = await scanDir(fullPath, relPath);
+        result.push({
+          name: entry.name,
+          path: fullPath,
+          relativePath: relPath,
+          isDirectory: true,
+          children
+        });
+      } else {
+        result.push({
+          name: entry.name,
+          path: fullPath,
+          relativePath: relPath,
+          isDirectory: false
+        });
+      }
+    }
+    
+    return result;
+  }
+  
+  try {
+    const files = await scanDir(workspacePath);
+    res.json({ ok: true, files, workspacePath });
+  } catch (err: any) {
+    console.error("[WORKSPACE] 扫描文件失败:", err);
+    res.status(500).json({ error: "扫描文件失败: " + err.message });
+  }
+});
+
+// 上传文件到工作区
+import multer from "multer";
+
+const upload = multer({ 
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 100 * 1024 * 1024 } // 100MB 限制
+});
+
+app.post("/api/workspace/upload", upload.array("files"), async (req, res) => {
+  const sessionId = String(req.body?.sessionId ?? "").trim();
+  if (!sessionId) return res.status(400).json({ error: "missing sessionId" });
+  
+  const workspacePath = sessionWorkspaces.get(sessionId);
+  if (!workspacePath) {
+    return res.status(400).json({ error: "未设置工作区" });
+  }
+  
+  const files = req.files as Express.Multer.File[];
+  if (!files || files.length === 0) {
+    return res.status(400).json({ error: "没有上传文件" });
+  }
+  
+  const results: { name: string; success: boolean; error?: string }[] = [];
+  
+  for (const file of files) {
+    const targetPath = path.join(workspacePath, file.originalname);
+    try {
+      await fs.writeFile(targetPath, file.buffer);
+      results.push({ name: file.originalname, success: true });
+      console.log("[WORKSPACE] 文件上传成功:", targetPath);
+    } catch (err: any) {
+      results.push({ name: file.originalname, success: false, error: err.message });
+      console.error("[WORKSPACE] 文件上传失败:", err);
+    }
+  }
+  
+  res.json({ ok: true, results });
+});
+
+// 用系统默认程序打开工作区中的文件
+app.post("/api/workspace/open", async (req, res) => {
+  const sessionId = String(req.body?.sessionId ?? "").trim();
+  const relativePath = String(req.body?.relativePath ?? "").trim();
+  
+  if (!sessionId) return res.status(400).json({ error: "missing sessionId" });
+  if (!relativePath) return res.status(400).json({ error: "missing relativePath" });
+  
+  const workspacePath = sessionWorkspaces.get(sessionId);
+  if (!workspacePath) {
+    return res.status(400).json({ error: "未设置工作区" });
+  }
+  
+  const fullPath = path.join(workspacePath, relativePath);
+  
+  // 安全检查
+  if (!fullPath.toLowerCase().startsWith(workspacePath.toLowerCase())) {
+    return res.status(403).json({ error: "不能打开工作区外的文件" });
+  }
+  
+  try {
+    await fs.access(fullPath);
+    
+    // 使用 VS Code 打开
+    exec(`code "${fullPath}"`, (error) => {
+      if (error) {
+        // 如果 VS Code 失败，用系统默认程序
+        exec(`start "" "${fullPath}"`);
+      }
+    });
+    
+    res.json({ ok: true, path: fullPath });
+  } catch {
+    res.status(404).json({ error: "文件不存在" });
   }
 });
 
