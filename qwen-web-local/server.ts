@@ -378,14 +378,9 @@ app.post("/api/chat", async (req, res) => {
   sendToSession(sessionId, "start", { sessionId });
   console.log("[CHAT] 开始生成", { sessionId });
 
-  // 使用 AbortController 实现超时控制和手动中止
+  // 使用 AbortController 实现手动中止（无超时限制）
   const abortController = new AbortController();
   sessionAbortControllers.set(sessionId, abortController);
-  
-  const timeout = setTimeout(() => {
-    console.warn("[CHAT] 生成超时（10分钟），中止", { sessionId });
-    abortController.abort();
-  }, 600_000); // 10 分钟超时
 
   try {
     const result = query({
@@ -555,7 +550,7 @@ app.post("/api/chat", async (req, res) => {
       : errorMsg.includes("ETIMEDOUT")
       ? "请求超时，Qwen Code 无响应"
       : errorMsg.includes("aborted")
-      ? "生成超时（10分钟）"
+      ? "用户已中止生成"
       : errorMsg;
     
     sendToSession(sessionId, "error", { 
@@ -563,7 +558,6 @@ app.post("/api/chat", async (req, res) => {
       debug: process.env.DEBUG ? errorMsg : undefined 
     });
   } finally {
-    clearTimeout(timeout);
     sessionAbortControllers.delete(sessionId);
   }
 });
