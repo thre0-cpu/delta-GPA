@@ -3,4 +3,4 @@
 包括：
 - CC方法 @./CC/README.md
 - GNN方法 @./GNN/README.md
-- MC方法 @./MC/README.md （目前未实装）
+- MC方法 @./MC/README.md
