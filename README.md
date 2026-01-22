@@ -82,17 +82,15 @@ start.bat
 
 ---
 
-## start.bat 说明（开发者注意）
+## start.bat 说明
 
-当前脚本是**强绑定本机路径**的（需要改成你自己的）：
+脚本会**自动检测**以下路径：
 
-- `PROJECT_DIR=D:\threo333\Projects\AAA_delta_GPA\codes\qwen-web-local`
-- `CONDA_BASE=D:\Anaconda`
-- `CONDA_ENV=dgpa`
+- `PROJECT_DIR`：自动获取脚本所在目录
+- `CONDA_BASE`：自动检测常见 Conda 安装位置（Anaconda3、miniconda3 等）
+- `CONDA_ENV`：默认为 `dgpa`（可在脚本中修改）
 
-建议做法：
-- 将上述值改为你本机实际路径
-- 或改造成从当前目录推导（便于他人使用）
+如果自动检测失败，脚本会提示你手动设置 `CONDA_BASE` 环境变量
 
 ---
 
