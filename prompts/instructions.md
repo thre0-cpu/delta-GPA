@@ -35,12 +35,14 @@
    - 输出：(ΔG°, ΔG'°, 不确定性)
    - 特点：深度学习模型，适合预测**新代谢物**
    - 优势：对缺乏实验数据的化合物也能给出预测
+   - 环境修正：借用eQuilibrator的transform函数进行pH/离子强度修正
 
-3. **dGPredictor使用的MC（Moiety Contribution，分部贡献法）（待集成）**
-   - 函数：待定义
-   - 输入：待定义
-   - 输出：待定义
-   - 特点：待定义
+3. **dGPredictor使用的MC（Moiety Contribution，分片贡献法）**
+   - 输入：KEGG ID反应式（如 "C00002 + C00001 <=> C00008 + C00009"）或SMILES
+   - 输出：(ΔrG'°, 不确定性, 平衡常数K')
+   - 特点：基于分子签名（Molecular Signature, ECFP-like）和贝叶斯岭回归
+   - 优势：提供贝叶斯置信区间
+   - 环境修正：借用eQuilibrator的transform函数进行pH/离子强度修正
 
 ## 工作流程规范
 

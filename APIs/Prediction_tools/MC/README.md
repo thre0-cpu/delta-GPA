@@ -1,4 +1,4 @@
-# dGPredictor 工具包（Molecular Contribution 方法）
+# dGPredictor 工具包（Moiety Contribution 方法）
 
 基于**分子签名（Molecular Signature）**和**贝叶斯岭回归**的反应自由能预测方法。
 
